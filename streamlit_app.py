@@ -8,6 +8,7 @@ import json
 # Import our custom modules
 from backend.gemini_service import GeminiService
 from backend.google_calendar_service import GoogleCalendarService
+from backend.oauth_handler import GoogleOAuthHandler
 
 # Page configuration
 st.set_page_config(
@@ -100,6 +101,12 @@ if 'gemini_service' not in st.session_state:
 if 'calendar_service' not in st.session_state:
     st.session_state.calendar_service = None
 
+if 'oauth_handler' not in st.session_state:
+    st.session_state.oauth_handler = None
+
+if 'google_tokens' not in st.session_state:
+    st.session_state.google_tokens = None
+
 # Initialize services
 def initialize_services():
     """Initialize Gemini and Google Calendar services"""
@@ -127,6 +134,9 @@ def initialize_services():
         if st.session_state.calendar_service is None:
             st.session_state.calendar_service = GoogleCalendarService()
 
+        if st.session_state.oauth_handler is None:
+            st.session_state.oauth_handler = GoogleOAuthHandler()
+
         return True
     except Exception as e:
         st.error(f"❌ Failed to initialize services: {str(e)}")
@@ -146,6 +156,15 @@ def main():
     if not initialize_services():
         st.stop()
 
+    # Handle OAuth callback if present
+    if st.session_state.oauth_handler:
+        if st.session_state.oauth_handler.handle_oauth_callback():
+            st.success("✅ Successfully connected to Google Calendar!")
+            # Initialize calendar service with tokens
+            if st.session_state.google_tokens:
+                st.session_state.calendar_service.initialize_with_tokens(st.session_state.google_tokens)
+            st.rerun()
+
     # Service status indicators
     col_status1, col_status2 = st.columns(2)
 
@@ -156,53 +175,74 @@ def main():
             st.error("🤖 Gemini AI: Not Configured")
 
     with col_status2:
-        if st.session_state.google_calendar_connected:
-            st.success("📅 Calendar: Connected")
-        elif st.session_state.calendar_service and st.session_state.calendar_service.is_configured():
-            st.info("📅 Calendar: Ready (Not Connected)")
+        if st.session_state.google_calendar_connected and st.session_state.calendar_service.is_authenticated():
+            st.success("📅 Calendar: Connected & Authenticated")
+        elif st.session_state.oauth_handler and st.session_state.oauth_handler.is_configured():
+            st.info("📅 Calendar: OAuth Ready (Not Connected)")
         else:
-            st.warning("📅 Calendar: Not Configured")
+            st.warning("📅 Calendar: OAuth Not Configured")
 
     # Sidebar for Google Calendar connection
     with st.sidebar:
         st.header("🔗 Google Calendar")
 
-        # Check if calendar service is configured
-        calendar_configured = st.session_state.calendar_service and st.session_state.calendar_service.is_configured()
+        # Check if OAuth is configured
+        oauth_configured = st.session_state.oauth_handler and st.session_state.oauth_handler.is_configured()
 
-        if not calendar_configured:
-            st.warning("⚠️ Google Calendar API not configured")
+        if not oauth_configured:
+            st.warning("⚠️ Google Calendar OAuth not configured")
             st.markdown("""
             <div class="calendar-status disconnected">
-                ❌ API Not Configured
+                ❌ OAuth Not Configured
             </div>
             """, unsafe_allow_html=True)
 
-            with st.expander("📋 Setup Instructions"):
+            with st.expander("📋 OAuth Setup Instructions"):
                 st.markdown("""
                 **To enable Google Calendar integration:**
 
                 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
                 2. Create a project and enable Google Calendar API
-                3. Create OAuth 2.0 credentials
-                4. Add your credentials to `.env.local`:
+                3. Create OAuth 2.0 credentials (Web application)
+                4. Add authorized redirect URIs:
+                   - For local: `http://localhost:8501`
+                   - For Streamlit Cloud: `https://your-app-name.streamlit.app`
+                5. Add credentials to your secrets:
+                   ```toml
+                   [google_oauth]
+                   client_id = "your_client_id"
+                   client_secret = "your_client_secret"
+                   redirect_uri = "your_redirect_uri"
                    ```
-                   GOOGLE_CLIENT_ID=your_client_id
-                   GOOGLE_CLIENT_SECRET=your_client_secret
-                   ```
-                5. Restart the application
+                6. Restart the application
                 """)
 
-        elif st.session_state.google_calendar_connected:
+        elif st.session_state.google_calendar_connected and st.session_state.google_user_info:
+            user_info = st.session_state.google_user_info
             st.markdown(f"""
             <div class="calendar-status connected">
-                ✅ Connected as {st.session_state.google_user_info.get('name', 'User')}
+                ✅ Connected as {user_info.get('name', user_info.get('email', 'User'))}
             </div>
             """, unsafe_allow_html=True)
 
-            if st.button("Disconnect Calendar", type="secondary"):
+            # Show user avatar if available
+            if 'picture' in user_info:
+                st.image(user_info['picture'], width=50)
+
+            st.write(f"📧 {user_info.get('email', 'No email')}")
+
+            if st.button("🔓 Disconnect Calendar", type="secondary"):
+                # Revoke tokens
+                if st.session_state.google_tokens and 'access_token' in st.session_state.google_tokens:
+                    st.session_state.oauth_handler.revoke_token(st.session_state.google_tokens['access_token'])
+
+                # Clear session state
                 st.session_state.google_calendar_connected = False
                 st.session_state.google_user_info = None
+                st.session_state.google_tokens = None
+                st.session_state.calendar_service = GoogleCalendarService()
+
+                st.success("🔓 Disconnected from Google Calendar")
                 st.rerun()
         else:
             st.markdown("""
@@ -211,22 +251,28 @@ def main():
             </div>
             """, unsafe_allow_html=True)
 
-            if st.button("Connect Google Calendar", type="primary"):
-                # For demo purposes, simulate connection
-                # In production, this would trigger OAuth flow
-                st.session_state.google_calendar_connected = True
-                st.session_state.google_user_info = {
-                    'name': 'Demo User',
-                    'email': 'demo@example.com'
-                }
-                st.success("✅ Calendar connected successfully! (Demo Mode)")
-                st.info("💡 This is a demo connection. In production, you would authenticate with Google OAuth.")
-                st.rerun()
+            if st.button("🔗 Connect Google Calendar", type="primary"):
+                try:
+                    # Generate OAuth URL
+                    auth_url, state = st.session_state.oauth_handler.generate_auth_url()
+
+                    # Show instructions to user
+                    st.info("🔄 Redirecting to Google for authentication...")
+                    st.markdown(f"""
+                    **Click the link below to authenticate with Google:**
+
+                    [🔗 Authenticate with Google Calendar]({auth_url})
+
+                    After authentication, you'll be redirected back to this app.
+                    """)
+
+                except Exception as e:
+                    st.error(f"❌ Error generating auth URL: {str(e)}")
 
             st.markdown("""
             <small>
-            <strong>Note:</strong> This demo uses simulated calendar connection.
-            For full functionality, configure Google OAuth credentials.
+            <strong>Note:</strong> Real Google Calendar integration with OAuth 2.0 authentication.
+            Your calendar data will be accessed securely through Google's API.
             </small>
             """, unsafe_allow_html=True)
 

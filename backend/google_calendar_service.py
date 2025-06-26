@@ -11,120 +11,72 @@ load_dotenv('.env.local')
 # Google API imports
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 class GoogleCalendarService:
-    """Service class for handling Google Calendar operations"""
-    
-    # OAuth 2.0 scopes for Google Calendar
-    SCOPES = [
-        'https://www.googleapis.com/auth/calendar.readonly',
-        'https://www.googleapis.com/auth/calendar.events'
-    ]
-    
+    """Service class for handling Google Calendar operations with OAuth tokens"""
+
     def __init__(self):
         """Initialize the Google Calendar service"""
-        self.credentials = None
         self.service = None
-        self.client_config = self._get_client_config()
+        self.credentials = None
     
-    def _get_client_config(self) -> Optional[Dict[str, Any]]:
-        """Get Google OAuth client configuration"""
+    def initialize_with_tokens(self, tokens: Dict[str, Any]) -> bool:
+        """Initialize service with OAuth tokens"""
         try:
-            # Try to get from Streamlit secrets first (for cloud deployment)
-            if hasattr(st, 'secrets') and 'google_oauth' in st.secrets:
-                return {
-                    "web": {
-                        "client_id": st.secrets['google_oauth']['client_id'],
-                        "client_secret": st.secrets['google_oauth']['client_secret'],
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token",
-                        "redirect_uris": [st.secrets['google_oauth'].get('redirect_uri', 'http://localhost:8501')]
-                    }
-                }
-        except:
-            pass
-        
-        # Fall back to environment variables
-        client_id = os.getenv('GOOGLE_CLIENT_ID')
-        client_secret = os.getenv('GOOGLE_CLIENT_SECRET')
-        
-        if client_id and client_secret:
-            return {
-                "web": {
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                    "token_uri": "https://oauth2.googleapis.com/token",
-                    "redirect_uris": ["http://localhost:8501"]
-                }
-            }
-        
-        return None
-    
-    def is_configured(self) -> bool:
-        """Check if the service is properly configured"""
-        return self.client_config is not None
-    
-    def get_authorization_url(self) -> Optional[str]:
-        """Get the authorization URL for OAuth flow"""
-        if not self.client_config:
-            return None
-        
-        try:
-            flow = Flow.from_client_config(
-                self.client_config,
-                scopes=self.SCOPES,
-                redirect_uri=self.client_config['web']['redirect_uris'][0]
+            # Create credentials from tokens
+            self.credentials = Credentials(
+                token=tokens.get('access_token'),
+                refresh_token=tokens.get('refresh_token'),
+                token_uri='https://oauth2.googleapis.com/token',
+                client_id=self._get_client_id(),
+                client_secret=self._get_client_secret(),
+                scopes=[
+                    'https://www.googleapis.com/auth/calendar.readonly',
+                    'https://www.googleapis.com/auth/calendar.events'
+                ]
             )
-            
-            auth_url, _ = flow.authorization_url(
-                access_type='offline',
-                include_granted_scopes='true'
-            )
-            
-            return auth_url
-        except Exception as e:
-            st.error(f"Error creating authorization URL: {str(e)}")
-            return None
-    
-    def authenticate_with_code(self, auth_code: str) -> bool:
-        """Authenticate using authorization code from OAuth flow"""
-        if not self.client_config:
-            return False
-        
-        try:
-            flow = Flow.from_client_config(
-                self.client_config,
-                scopes=self.SCOPES,
-                redirect_uri=self.client_config['web']['redirect_uris'][0]
-            )
-            
-            flow.fetch_token(code=auth_code)
-            self.credentials = flow.credentials
-            self.service = build('calendar', 'v3', credentials=self.credentials)
-            
-            return True
-        except Exception as e:
-            st.error(f"Authentication error: {str(e)}")
-            return False
-    
-    def authenticate_with_token(self, token_info: Dict[str, Any]) -> bool:
-        """Authenticate using existing token information"""
-        try:
-            self.credentials = Credentials.from_authorized_user_info(token_info, self.SCOPES)
-            
+
             # Refresh token if expired
             if self.credentials.expired and self.credentials.refresh_token:
                 self.credentials.refresh(Request())
-            
+
+            # Build the service
             self.service = build('calendar', 'v3', credentials=self.credentials)
             return True
+
         except Exception as e:
-            st.error(f"Token authentication error: {str(e)}")
+            st.error(f"Error initializing calendar service: {str(e)}")
             return False
+
+    def _get_client_id(self) -> str:
+        """Get Google OAuth Client ID"""
+        try:
+            if hasattr(st, 'secrets') and 'google_oauth' in st.secrets:
+                return st.secrets['google_oauth']['client_id']
+        except:
+            pass
+        return os.getenv('GOOGLE_CLIENT_ID', '')
+
+    def _get_client_secret(self) -> str:
+        """Get Google OAuth Client Secret"""
+        try:
+            if hasattr(st, 'secrets') and 'google_oauth' in st.secrets:
+                return st.secrets['google_oauth']['client_secret']
+        except:
+            pass
+        return os.getenv('GOOGLE_CLIENT_SECRET', '')
+    
+    def is_configured(self) -> bool:
+        """Check if the service is properly configured"""
+        return bool(self._get_client_id() and self._get_client_secret())
+
+    def is_authenticated(self) -> bool:
+        """Check if the service is authenticated and ready to use"""
+        return self.service is not None and self.credentials is not None
+    
+
     
     def get_user_info(self) -> Optional[Dict[str, str]]:
         """Get authenticated user information"""

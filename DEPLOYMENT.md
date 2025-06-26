@@ -81,12 +81,15 @@ This guide provides detailed step-by-step instructions for deploying TailorTalk 
    - In the app settings, click "Secrets"
    - Add the following in TOML format:
    ```toml
-   GEMINI_API_KEY = "your_actual_gemini_api_key"
-   
+   GEMINI_API_KEY = "AIzaSyBn-kcJcmzPzxqmu4U-nAQXpUiWa9XRWCQ"
+
    [google_oauth]
    client_id = "your_actual_google_client_id"
    client_secret = "your_actual_google_client_secret"
    redirect_uri = "https://your-actual-app-url.streamlit.app"
+
+   # Optional: Enhanced security with token encryption
+   encryption_key = "your_base64_encryption_key_here"
    ```
 
 4. **Deploy**

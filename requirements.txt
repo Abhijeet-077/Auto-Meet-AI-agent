@@ -1,8 +1,7 @@
-# Streamlit and web framework dependencies
+# Core Streamlit dependencies
 streamlit>=1.28.0
-streamlit-chat>=0.1.1
 
-# Google API dependencies
+# Google API dependencies for Calendar integration
 google-api-python-client>=2.100.0
 google-auth>=2.22.0
 google-auth-oauthlib>=1.0.0
@@ -11,11 +10,10 @@ google-auth-httplib2>=0.1.0
 # Gemini AI dependencies
 google-generativeai>=0.3.0
 
-# Additional utility dependencies
+# Utility dependencies
 python-dotenv>=1.0.0
 requests>=2.31.0
 pytz>=2023.3
 
-# Optional: For enhanced UI components
-streamlit-authenticator>=0.2.3
-streamlit-option-menu>=0.3.6
+# OAuth and authentication
+cryptography>=41.0.0
