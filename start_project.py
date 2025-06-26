@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Cross-platform startup script for Agentic Calendar
-Starts both FastAPI backend and Streamlit frontend
+Agentic Calendar - Production Startup Script
+Cross-platform startup script for professional deployment
+Starts both FastAPI backend and modern Streamlit frontend
 """
 
 import os

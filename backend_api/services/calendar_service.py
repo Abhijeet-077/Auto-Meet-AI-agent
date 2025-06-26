@@ -129,29 +129,43 @@ class CalendarService:
                 ).execute()
                 
                 if verification:
+                    # Generate additional verification links
+                    verification_link = f'https://calendar.google.com/calendar/r/eventedit/{event_id}'
+
                     return {
                         "success": True,
                         "event_id": event_id,
                         "event_link": event_link,
+                        "verification_link": verification_link,
                         "title": title,
                         "start_time": start_time.strftime("%Y-%m-%d %H:%M %Z"),
                         "end_time": end_time.strftime("%Y-%m-%d %H:%M %Z"),
                         "timezone": timezone,
-                        "attendees": attendees or []
+                        "attendees": attendees or [],
+                        "verification_status": "verified",
+                        "calendar_integration": "google_calendar",
+                        "created_timestamp": datetime.now().isoformat()
                     }
                 else:
                     return {"success": False, "error": "Event created but verification failed"}
                     
             except Exception as verify_error:
+                # Generate verification link even if verification failed
+                verification_link = f'https://calendar.google.com/calendar/r/eventedit/{event_id}'
+
                 return {
                     "success": True,
                     "event_id": event_id,
                     "event_link": event_link,
+                    "verification_link": verification_link,
                     "title": title,
                     "start_time": start_time.strftime("%Y-%m-%d %H:%M %Z"),
                     "end_time": end_time.strftime("%Y-%m-%d %H:%M %Z"),
                     "timezone": timezone,
                     "attendees": attendees or [],
+                    "verification_status": "created_unverified",
+                    "calendar_integration": "google_calendar",
+                    "created_timestamp": datetime.now().isoformat(),
                     "warning": f"Event created but verification failed: {str(verify_error)}"
                 }
             

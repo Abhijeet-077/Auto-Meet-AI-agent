@@ -1,27 +1,21 @@
 """
-FastAPI Backend for TailorTalk Application
-Provides REST API endpoints for OAuth, Calendar, and AI services
+Agentic Calendar - FastAPI Backend
+Professional REST API for AI-powered meeting scheduling and Google Calendar integration
 """
 
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import uvicorn
 import os
 from dotenv import load_dotenv
 
-# Load environment variables from parent directory
 load_dotenv('../.env.local')
 
-# Import API routers
-from routers import oauth, calendar, ai, health
+from routers import oauth, calendar, ai, health, demo
 
-# Create FastAPI app
 app = FastAPI(
-    title="TailorTalk API",
-    description="Backend API for TailorTalk AI Calendar Assistant",
-    version="1.0.0",
+    title="Agentic Calendar API",
+    description="Professional backend API for AI-powered meeting scheduling with Google Calendar integration",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -44,6 +38,7 @@ app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(oauth.router, prefix="/api/v1/oauth", tags=["oauth"])
 app.include_router(calendar.router, prefix="/api/v1/calendar", tags=["calendar"])
 app.include_router(ai.router, prefix="/api/v1/ai", tags=["ai"])
+app.include_router(demo.router, prefix="/api/v1/demo", tags=["demo"])
 
 @app.get("/")
 async def root():

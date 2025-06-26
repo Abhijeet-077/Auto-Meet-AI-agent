@@ -1,6 +1,6 @@
 """
-OAuth Service for TailorTalk API
-Migrated from backend/oauth_handler.py to work with FastAPI
+OAuth Service for Agentic Calendar
+Professional Google OAuth 2.0 integration with enhanced security
 """
 
 import os

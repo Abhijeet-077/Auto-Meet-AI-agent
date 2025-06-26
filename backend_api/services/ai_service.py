@@ -1,6 +1,6 @@
 """
-AI Service for TailorTalk API
-Migrated from streamlit_app.py SimpleGeminiService to work with FastAPI
+AI Service for Agentic Calendar
+Professional Google Gemini integration for intelligent meeting scheduling
 """
 
 import os

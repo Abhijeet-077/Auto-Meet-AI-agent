@@ -1,23 +1,29 @@
-# Bulletproof requirements for Streamlit Cloud
-# Tested and guaranteed to work without installer errors
-streamlit
-google-generativeai
-requests
+# Agentic Calendar - Multi-AI Provider Requirements
+# Core Streamlit
+streamlit>=1.28.0
 
-# FastAPI Backend Dependencies
-fastapi
-uvicorn[standard]
-pydantic
+# HTTP requests and API communication
+requests>=2.31.0
 
-# Google Calendar API and OAuth dependencies
-google-api-python-client
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
+# Google API libraries for Calendar integration
+google-auth>=2.23.0
+google-auth-oauthlib>=1.1.0
+google-auth-httplib2>=0.1.1
+google-api-python-client>=2.100.0
 
-# Security and encryption for token management
-cryptography
-python-dotenv
+# Multi-AI Provider Libraries
+google-generativeai>=0.3.0
+openai>=1.3.0
+anthropic>=0.7.0
 
-# Additional utilities
-urllib3
+# Cryptography for secure token storage
+cryptography>=41.0.0
+
+# Date and time handling
+python-dateutil>=2.8.2
+
+# Environment variable management
+python-dotenv>=1.0.0
+
+# Type hints support
+typing-extensions>=4.7.0
