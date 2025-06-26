@@ -5,10 +5,15 @@ import pytz
 from typing import List, Dict, Any
 import json
 
-# Import our custom modules
-from backend.gemini_service import GeminiService
-from backend.google_calendar_service import GoogleCalendarService
-from backend.oauth_handler import GoogleOAuthHandler
+# Import our custom modules with error handling
+try:
+    from backend.gemini_service import GeminiService
+    from backend.google_calendar_service import GoogleCalendarService
+    from backend.oauth_handler import GoogleOAuthHandler
+except ImportError as e:
+    st.error(f"Import error: {e}")
+    st.error("Please check that all backend modules are present and properly configured.")
+    st.stop()
 
 # Page configuration
 st.set_page_config(

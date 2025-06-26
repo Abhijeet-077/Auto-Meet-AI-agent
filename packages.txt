@@ -1,8 +1,5 @@
-# System packages required for Streamlit Cloud deployment
-# This file is used by Streamlit Cloud to install system-level dependencies
+# Minimal system packages for Streamlit Cloud
+# Only essential packages to avoid deployment errors
 
-# Required for cryptography and Google API client libraries
-build-essential
 libffi-dev
 libssl-dev
-pkg-config

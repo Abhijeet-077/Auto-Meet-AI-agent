@@ -1,19 +1,10 @@
-# Core Streamlit dependencies
-streamlit>=1.28.0
-
-# Google API dependencies for Calendar integration
-google-api-python-client>=2.100.0
-google-auth>=2.22.0
-google-auth-oauthlib>=1.0.0
-google-auth-httplib2>=0.1.0
-
-# Gemini AI dependencies
-google-generativeai>=0.3.0
-
-# Utility dependencies
-python-dotenv>=1.0.0
-requests>=2.31.0
-pytz>=2023.3
-
-# OAuth and authentication
-cryptography>=41.0.0
+# Minimal requirements for Streamlit Cloud deployment
+streamlit
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-generativeai
+python-dotenv
+requests
+pytz
+cryptography

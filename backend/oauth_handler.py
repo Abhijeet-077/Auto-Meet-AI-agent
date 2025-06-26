@@ -8,7 +8,10 @@ from urllib.parse import urlencode, parse_qs
 import streamlit as st
 import requests
 from dotenv import load_dotenv
-from .token_manager import TokenManager
+try:
+    from .token_manager import TokenManager
+except ImportError:
+    from backend.token_manager import TokenManager
 
 # Load environment variables
 load_dotenv('.env.local')
