@@ -3,3 +3,16 @@
 streamlit
 google-generativeai
 requests
+
+# Google Calendar API and OAuth dependencies
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+
+# Security and encryption for token management
+cryptography
+python-dotenv
+
+# Additional utilities
+urllib3

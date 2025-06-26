@@ -25,6 +25,10 @@ class GoogleCalendarService:
     def initialize_with_tokens(self, tokens: Dict[str, Any]) -> bool:
         """Initialize service with OAuth tokens"""
         try:
+            if not tokens or 'access_token' not in tokens:
+                st.error("Invalid tokens provided for calendar service initialization")
+                return False
+
             # Create credentials from tokens
             self.credentials = Credentials(
                 token=tokens.get('access_token'),
@@ -34,20 +38,37 @@ class GoogleCalendarService:
                 client_secret=self._get_client_secret(),
                 scopes=[
                     'https://www.googleapis.com/auth/calendar.readonly',
-                    'https://www.googleapis.com/auth/calendar.events'
+                    'https://www.googleapis.com/auth/calendar.events',
+                    'https://www.googleapis.com/auth/userinfo.email',
+                    'https://www.googleapis.com/auth/userinfo.profile'
                 ]
             )
 
-            # Refresh token if expired
+            # Check if token is expired and refresh if needed
             if self.credentials.expired and self.credentials.refresh_token:
-                self.credentials.refresh(Request())
+                try:
+                    self.credentials.refresh(Request())
+                    st.success("Access token refreshed successfully")
+                except Exception as refresh_error:
+                    st.error(f"Failed to refresh access token: {str(refresh_error)}")
+                    return False
 
             # Build the service
             self.service = build('calendar', 'v3', credentials=self.credentials)
-            return True
+
+            # Test the connection with a simple API call
+            try:
+                calendar_list = self.service.calendarList().list(maxResults=1).execute()
+                st.success("Google Calendar service initialized successfully")
+                return True
+            except Exception as test_error:
+                st.error(f"Calendar service test failed: {str(test_error)}")
+                return False
 
         except Exception as e:
             st.error(f"Error initializing calendar service: {str(e)}")
+            if os.getenv('DEBUG_MODE', 'false').lower() == 'true':
+                st.exception(e)
             return False
 
     def _get_client_id(self) -> str:
@@ -74,7 +95,54 @@ class GoogleCalendarService:
 
     def is_authenticated(self) -> bool:
         """Check if the service is authenticated and ready to use"""
-        return self.service is not None and self.credentials is not None
+        if self.service is None or self.credentials is None:
+            return False
+
+        # Check if credentials are still valid
+        try:
+            if self.credentials.expired:
+                if self.credentials.refresh_token:
+                    self.credentials.refresh(Request())
+                    return True
+                else:
+                    return False
+            return True
+        except Exception:
+            return False
+
+    def get_authentication_status(self) -> Dict[str, Any]:
+        """Get detailed authentication status"""
+        if not self.credentials:
+            return {
+                'authenticated': False,
+                'error': 'No credentials available'
+            }
+
+        try:
+            status = {
+                'authenticated': True,
+                'has_access_token': bool(self.credentials.token),
+                'has_refresh_token': bool(self.credentials.refresh_token),
+                'expired': self.credentials.expired,
+                'scopes': self.credentials.scopes
+            }
+
+            if self.credentials.expired and self.credentials.refresh_token:
+                try:
+                    self.credentials.refresh(Request())
+                    status['refreshed'] = True
+                    status['expired'] = False
+                except Exception as e:
+                    status['refresh_error'] = str(e)
+                    status['authenticated'] = False
+
+            return status
+
+        except Exception as e:
+            return {
+                'authenticated': False,
+                'error': str(e)
+            }
     
 
     

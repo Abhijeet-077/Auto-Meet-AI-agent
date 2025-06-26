@@ -5,6 +5,15 @@ import pytz
 from typing import List, Dict, Any
 import json
 
+# Import OAuth handler
+try:
+    from backend.oauth_handler import GoogleOAuthHandler
+    from backend.google_calendar_service import GoogleCalendarService
+    OAUTH_AVAILABLE = True
+except ImportError:
+    OAUTH_AVAILABLE = False
+    st.error("OAuth components not available. Please check your backend configuration.")
+
 # Simplified imports for bulletproof deployment
 try:
     import google.generativeai as genai
@@ -253,6 +262,14 @@ def initialize_services():
         return False
 
 def main():
+    # Handle OAuth callback first
+    if OAUTH_AVAILABLE:
+        oauth_handler = GoogleOAuthHandler()
+        if oauth_handler.handle_oauth_callback():
+            st.success("🎉 Google Calendar connected successfully!")
+            st.balloons()
+            st.rerun()
+
     # Header
     st.markdown("""
     <div class="main-header">
@@ -303,21 +320,48 @@ def main():
             </div>
             """, unsafe_allow_html=True)
 
-            if st.button("🔗 Connect Google Calendar", type="primary"):
-                # Demo connection for deployment testing
-                st.session_state.google_calendar_connected = True
-                st.session_state.google_user_info = {
-                    'name': 'Demo User',
-                    'email': 'demo@example.com'
-                }
-                st.success("✅ Calendar connected successfully! (Demo Mode)")
-                st.info("💡 This is a demo connection for testing deployment. Full OAuth integration can be added later.")
-                st.rerun()
+            # Check OAuth availability and configuration
+            if not OAUTH_AVAILABLE:
+                st.error("⚠️ OAuth components not available")
+                st.markdown("""
+                **OAuth backend not configured:**
+                1. Ensure all required packages are installed: `pip install -r requirements.txt`
+                2. Check that backend files are present
+                3. Restart the application
+                """)
+            else:
+                oauth_handler = GoogleOAuthHandler()
+                if not oauth_handler.is_configured():
+                    st.error("⚠️ Google OAuth not configured")
+                    st.markdown("""
+                    **To enable Google Calendar integration:**
+                    1. Follow the setup guide in `GOOGLE_OAUTH_SETUP.md`
+                    2. Update your `.env.local` file with proper credentials
+                    3. Restart the application
+                    """)
+
+                    with st.expander("🔧 Configuration Status"):
+                        config_status = oauth_handler.get_configuration_status()
+                        st.json(config_status)
+                else:
+                    if st.button("🔗 Connect Google Calendar", type="primary"):
+                        try:
+                            auth_url, state = oauth_handler.generate_auth_url()
+                            st.markdown(f"""
+                            **Click the link below to authorize TailorTalk to access your Google Calendar:**
+
+                            [🔗 Authorize Google Calendar Access]({auth_url})
+
+                            After authorization, you'll be redirected back to this page.
+                            """)
+                            st.info("💡 A new tab will open for Google authorization. Complete the process and return here.")
+                        except Exception as e:
+                            st.error(f"Error generating authorization URL: {str(e)}")
 
             st.markdown("""
             <small>
-            <strong>Note:</strong> Demo mode for testing deployment.
-            Real Google Calendar integration can be added after successful deployment.
+            <strong>Note:</strong> Real Google Calendar OAuth 2.0 integration.
+            Your data is secure and only used for calendar operations.
             </small>
             """, unsafe_allow_html=True)
 

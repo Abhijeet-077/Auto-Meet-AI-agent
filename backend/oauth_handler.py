@@ -25,31 +25,32 @@ class GoogleOAuthHandler:
         self.client_secret = self._get_client_secret()
         self.redirect_uri = self._get_redirect_uri()
         self.token_manager = TokenManager()
-        self.scopes = [
-            'https://www.googleapis.com/auth/calendar.readonly',
-            'https://www.googleapis.com/auth/calendar.events',
-            'https://www.googleapis.com/auth/userinfo.email',
-            'https://www.googleapis.com/auth/userinfo.profile'
-        ]
+        self.scopes = self._get_scopes()
         
     def _get_client_id(self) -> str:
-        """Get Google OAuth Client ID"""
+        """Get Google OAuth Client ID from environment or Streamlit secrets"""
         try:
             if hasattr(st, 'secrets') and 'google_oauth' in st.secrets:
                 return st.secrets['google_oauth']['client_id']
         except:
             pass
-        return os.getenv('GOOGLE_CLIENT_ID', '')
-    
+        client_id = os.getenv('GOOGLE_CLIENT_ID', '')
+        if not client_id or client_id == 'your_google_client_id_here':
+            return ''
+        return client_id
+
     def _get_client_secret(self) -> str:
-        """Get Google OAuth Client Secret"""
+        """Get Google OAuth Client Secret from environment or Streamlit secrets"""
         try:
             if hasattr(st, 'secrets') and 'google_oauth' in st.secrets:
                 return st.secrets['google_oauth']['client_secret']
         except:
             pass
-        return os.getenv('GOOGLE_CLIENT_SECRET', '')
-    
+        client_secret = os.getenv('GOOGLE_CLIENT_SECRET', '')
+        if not client_secret or client_secret in ['PLACEHOLDER_CLIENT_SECRET', 'your_google_client_secret_here']:
+            return ''
+        return client_secret
+
     def _get_redirect_uri(self) -> str:
         """Get OAuth redirect URI"""
         try:
@@ -57,47 +58,92 @@ class GoogleOAuthHandler:
                 return st.secrets['google_oauth'].get('redirect_uri', 'http://localhost:8501')
         except:
             pass
-        return os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:8501')
-    
+        # Check both OAUTH_REDIRECT_URI and GOOGLE_REDIRECT_URI for compatibility
+        return os.getenv('OAUTH_REDIRECT_URI', os.getenv('GOOGLE_REDIRECT_URI', 'http://localhost:8501'))
+
+    def _get_scopes(self) -> list:
+        """Get OAuth scopes from environment or use defaults"""
+        try:
+            scopes_str = os.getenv('OAUTH_SCOPES', '')
+            if scopes_str:
+                return [scope.strip() for scope in scopes_str.split(',')]
+        except:
+            pass
+        return [
+            'https://www.googleapis.com/auth/calendar.readonly',
+            'https://www.googleapis.com/auth/calendar.events',
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile'
+        ]
+
     def is_configured(self) -> bool:
         """Check if OAuth is properly configured"""
         return bool(self.client_id and self.client_secret)
+
+    def get_configuration_status(self) -> Dict[str, Any]:
+        """Get detailed configuration status for debugging"""
+        return {
+            'client_id_configured': bool(self.client_id),
+            'client_secret_configured': bool(self.client_secret),
+            'redirect_uri': self.redirect_uri,
+            'scopes': self.scopes,
+            'is_configured': self.is_configured(),
+            'client_id_preview': f"{self.client_id[:20]}..." if self.client_id else "Not set"
+        }
     
     def generate_auth_url(self) -> Tuple[str, str]:
         """Generate OAuth authorization URL and state"""
         if not self.is_configured():
-            raise ValueError("OAuth not configured. Missing client_id or client_secret.")
-        
-        # Generate state for CSRF protection
-        state = secrets.token_urlsafe(32)
-        
-        # Store state in session
-        st.session_state.oauth_state = state
-        
-        # OAuth parameters
-        params = {
-            'client_id': self.client_id,
-            'redirect_uri': self.redirect_uri,
-            'scope': ' '.join(self.scopes),
-            'response_type': 'code',
-            'state': state,
-            'access_type': 'offline',
-            'prompt': 'consent'
-        }
-        
-        auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
-        return auth_url, state
+            config_status = self.get_configuration_status()
+            error_msg = f"OAuth not configured properly. Status: {config_status}"
+            st.error(error_msg)
+            raise ValueError(error_msg)
+
+        try:
+            # Generate state for CSRF protection
+            state = secrets.token_urlsafe(32)
+
+            # Store state in session
+            st.session_state.oauth_state = state
+
+            # OAuth parameters
+            params = {
+                'client_id': self.client_id,
+                'redirect_uri': self.redirect_uri,
+                'scope': ' '.join(self.scopes),
+                'response_type': 'code',
+                'state': state,
+                'access_type': 'offline',
+                'prompt': 'consent'
+            }
+
+            auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
+
+            # Debug logging in development
+            if os.getenv('DEBUG_MODE', 'false').lower() == 'true':
+                st.info(f"Generated auth URL with redirect_uri: {self.redirect_uri}")
+
+            return auth_url, state
+
+        except Exception as e:
+            error_msg = f"Error generating auth URL: {str(e)}"
+            st.error(error_msg)
+            raise ValueError(error_msg)
     
     def exchange_code_for_tokens(self, auth_code: str, state: str) -> Optional[Dict[str, Any]]:
         """Exchange authorization code for access tokens"""
         if not self.is_configured():
+            st.error("OAuth not configured for token exchange")
             return None
-        
+
         # Verify state to prevent CSRF attacks
-        if state != st.session_state.get('oauth_state'):
-            st.error("Invalid state parameter. Possible CSRF attack.")
+        stored_state = st.session_state.get('oauth_state')
+        if state != stored_state:
+            st.error("Invalid state parameter. Possible CSRF attack or session expired.")
+            if os.getenv('DEBUG_MODE', 'false').lower() == 'true':
+                st.error(f"Expected state: {stored_state}, Received state: {state}")
             return None
-        
+
         # Token exchange parameters
         token_data = {
             'client_id': self.client_id,
@@ -106,30 +152,45 @@ class GoogleOAuthHandler:
             'grant_type': 'authorization_code',
             'redirect_uri': self.redirect_uri
         }
-        
+
         try:
             # Exchange code for tokens
             response = requests.post(
                 'https://oauth2.googleapis.com/token',
                 data=token_data,
-                headers={'Content-Type': 'application/x-www-form-urlencoded'}
+                headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                timeout=30
             )
-            
+
             if response.status_code == 200:
                 tokens = response.json()
-                
+
+                # Add expiration timestamp if not present
+                if 'expires_in' in tokens and 'expires_at' not in tokens:
+                    import time
+                    tokens['expires_at'] = time.time() + tokens['expires_in']
+
                 # Get user info
                 user_info = self._get_user_info(tokens['access_token'])
                 if user_info:
                     tokens['user_info'] = user_info
-                
+                else:
+                    st.warning("Could not retrieve user information")
+
                 return tokens
             else:
-                st.error(f"Token exchange failed: {response.text}")
+                error_details = response.json() if response.headers.get('content-type', '').startswith('application/json') else response.text
+                st.error(f"Token exchange failed (HTTP {response.status_code}): {error_details}")
                 return None
-                
+
+        except requests.exceptions.Timeout:
+            st.error("Token exchange timed out. Please try again.")
+            return None
+        except requests.exceptions.RequestException as e:
+            st.error(f"Network error during token exchange: {str(e)}")
+            return None
         except Exception as e:
-            st.error(f"Error during token exchange: {str(e)}")
+            st.error(f"Unexpected error during token exchange: {str(e)}")
             return None
     
     def _get_user_info(self, access_token: str) -> Optional[Dict[str, Any]]:

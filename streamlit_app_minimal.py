@@ -4,6 +4,14 @@ from datetime import datetime, timedelta
 import pytz
 from typing import List, Dict, Any, Optional
 import json
+
+# Import OAuth handler
+try:
+    from backend.oauth_handler import GoogleOAuthHandler
+    from backend.google_calendar_service import GoogleCalendarService
+    OAUTH_AVAILABLE = True
+except ImportError:
+    OAUTH_AVAILABLE = False
 import secrets
 from urllib.parse import urlencode
 import requests
@@ -205,21 +213,33 @@ def main():
             </div>
             """, unsafe_allow_html=True)
 
-            if st.button("🔗 Connect Google Calendar", type="primary"):
-                # Demo connection for now
-                st.session_state.google_calendar_connected = True
-                st.session_state.google_user_info = {
-                    'name': 'Demo User',
-                    'email': 'demo@example.com'
-                }
-                st.success("✅ Calendar connected successfully! (Demo Mode)")
-                st.info("💡 This is a demo connection. Full OAuth integration available in production.")
-                st.rerun()
-                
+            # Check OAuth availability and configuration
+            if not OAUTH_AVAILABLE:
+                st.warning("⚠️ OAuth components not available - using demo mode")
+                if st.button("🔗 Connect Google Calendar (Demo)", type="primary"):
+                    st.session_state.google_calendar_connected = True
+                    st.session_state.google_user_info = {
+                        'name': 'Demo User',
+                        'email': 'demo@example.com'
+                    }
+                    st.success("✅ Calendar connected successfully! (Demo Mode)")
+                    st.rerun()
+            else:
+                oauth_handler = GoogleOAuthHandler()
+                if not oauth_handler.is_configured():
+                    st.error("⚠️ Google OAuth not configured")
+                    st.markdown("Follow the setup guide in `GOOGLE_OAUTH_SETUP.md`")
+                else:
+                    if st.button("🔗 Connect Google Calendar", type="primary"):
+                        try:
+                            auth_url, state = oauth_handler.generate_auth_url()
+                            st.markdown(f"[🔗 Authorize Google Calendar Access]({auth_url})")
+                        except Exception as e:
+                            st.error(f"Error: {str(e)}")
+
             st.markdown("""
             <small>
-            <strong>Note:</strong> Demo mode for testing. 
-            Real Google Calendar integration requires OAuth setup.
+            <strong>Note:</strong> Real OAuth integration when properly configured.
             </small>
             """, unsafe_allow_html=True)
     

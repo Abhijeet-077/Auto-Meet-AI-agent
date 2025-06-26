@@ -6,10 +6,12 @@ TailorTalk is an intelligent calendar assistant built with Streamlit that helps 
 
 - **Natural Language Scheduling**: Chat with the AI to schedule appointments using everyday language
 - **Google Calendar Integration**: Seamlessly connect to your Google Calendar for real-time availability checking
+- **OAuth 2.0 Security**: Secure Google Calendar integration with encrypted token storage
 - **Smart Availability Detection**: Automatically finds free slots in your calendar
 - **Event Creation**: Creates calendar events directly from your conversation
 - **Beautiful UI**: Clean, modern interface built with Streamlit
 - **Responsive Design**: Works on desktop and mobile devices
+- **Production Ready**: Complete OAuth flow with error handling and token refresh
 
 ## 🚀 Quick Start
 
@@ -18,6 +20,20 @@ TailorTalk is an intelligent calendar assistant built with Streamlit that helps 
 - Python 3.8 or higher
 - Google Cloud Project with Calendar API enabled
 - Gemini API key
+- Google OAuth 2.0 credentials
+
+### 🔐 Google Calendar OAuth Setup
+
+**Quick Setup (5 minutes):**
+1. Follow the guide in `OAUTH_QUICK_START.md`
+2. Run the setup script: `python setup_oauth.py`
+3. Test your configuration: `python test_oauth.py`
+
+**Detailed Setup:**
+- See `GOOGLE_OAUTH_SETUP.md` for comprehensive instructions
+- Includes Google Cloud Console configuration
+- OAuth consent screen setup
+- Security best practices
 
 ### Local Development
 
