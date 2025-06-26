@@ -694,6 +694,177 @@ def render_status_dashboard():
         text = "Backend Online" if backend_healthy else "Backend Offline"
         st.markdown(f'<div class="status-indicator {status_class}"><span>{icon}</span> {text}</div>', unsafe_allow_html=True)
 
+def render_ai_provider_settings():
+    """Render AI provider configuration settings in sidebar"""
+    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
+    st.markdown("### 🤖 AI Provider Settings")
+
+    # Get current AI status
+    ai_status = api_client.get(API_ENDPOINTS['ai_status'])
+
+    if ai_status and ai_status.get('success'):
+        current_provider = ai_status.get('current_provider', {})
+        provider_name = current_provider.get('name', 'Unknown')
+        provider_icon = current_provider.get('icon', '🤖')
+
+        st.markdown(f"""
+        <div style="
+            background: var(--success-50);
+            border: 1px solid var(--success-200);
+            border-radius: var(--radius-md);
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            text-align: center;
+        ">
+            <strong style="color: var(--success-600);">{provider_icon} {provider_name}</strong><br>
+            <small style="color: var(--gray-600);">Currently Active</small>
+        </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style="
+            background: var(--warning-50);
+            border: 1px solid var(--warning-200);
+            border-radius: var(--radius-md);
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            text-align: center;
+        ">
+            <strong style="color: var(--warning-600);">⚠️ AI Not Configured</strong><br>
+            <small style="color: var(--gray-600);">Using fallback mode</small>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # Provider selection
+    provider_options = [
+        "🎯 Demo Mode (No API Key)",
+        "🧠 Google Gemini",
+        "🤖 OpenAI GPT",
+        "🎭 Anthropic Claude"
+    ]
+
+    provider_keys = ['demo', 'gemini', 'openai', 'claude']
+
+    # Get current selection
+    current_selection = 0
+    if ai_status and ai_status.get('success'):
+        current_provider_key = ai_status.get('current_provider', {}).get('key', 'demo')
+        try:
+            current_selection = provider_keys.index(current_provider_key)
+        except ValueError:
+            current_selection = 0
+
+    selected_provider_idx = st.selectbox(
+        "Choose AI Provider:",
+        range(len(provider_options)),
+        format_func=lambda x: provider_options[x],
+        index=current_selection,
+        key="ai_provider_select"
+    )
+
+    selected_provider = provider_keys[selected_provider_idx]
+
+    # API Key input for non-demo providers
+    if selected_provider != 'demo':
+        st.markdown("**API Key Configuration:**")
+
+        # Get provider-specific information
+        provider_info = {
+            'gemini': {
+                'name': 'Google Gemini',
+                'url': 'https://makersuite.google.com/app/apikey',
+                'placeholder': 'AIza...'
+            },
+            'openai': {
+                'name': 'OpenAI',
+                'url': 'https://platform.openai.com/api-keys',
+                'placeholder': 'sk-...'
+            },
+            'claude': {
+                'name': 'Anthropic Claude',
+                'url': 'https://console.anthropic.com/',
+                'placeholder': 'sk-ant-...'
+            }
+        }
+
+        info = provider_info.get(selected_provider, {})
+
+        # API Key input
+        api_key = st.text_input(
+            f"{info.get('name', 'API')} Key:",
+            type="password",
+            placeholder=info.get('placeholder', 'Enter API key...'),
+            key=f"{selected_provider}_api_key_input",
+            help=f"Get your API key from: {info.get('url', 'provider website')}"
+        )
+
+        # Save and test buttons
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🔍 Test", use_container_width=True, key=f"test_{selected_provider}"):
+                if api_key:
+                    # Test the API key
+                    test_response = api_client.post(API_ENDPOINTS['ai_chat'], {
+                        'message': 'Hello',
+                        'provider': selected_provider,
+                        'api_key': api_key,
+                        'test_mode': True
+                    })
+
+                    if test_response and test_response.get('success'):
+                        st.success("✅ API key is valid!")
+                    else:
+                        st.error("❌ Invalid API key")
+                else:
+                    st.warning("Please enter an API key")
+
+        with col2:
+            if st.button("💾 Save & Use", use_container_width=True, key=f"save_{selected_provider}"):
+                if api_key:
+                    # Save and switch to this provider
+                    switch_response = api_client.post(API_ENDPOINTS['ai_chat'], {
+                        'action': 'switch_provider',
+                        'provider': selected_provider,
+                        'api_key': api_key
+                    })
+
+                    if switch_response and switch_response.get('success'):
+                        st.success(f"✅ Switched to {info.get('name', selected_provider)}!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Failed to switch provider")
+                else:
+                    st.warning("Please enter an API key")
+    else:
+        # Demo mode - just switch
+        if st.button("🎯 Use Demo Mode", use_container_width=True, key="use_demo"):
+            switch_response = api_client.post(API_ENDPOINTS['ai_chat'], {
+                'action': 'switch_provider',
+                'provider': 'demo'
+            })
+
+            if switch_response and switch_response.get('success'):
+                st.success("✅ Switched to Demo Mode!")
+                st.rerun()
+            else:
+                st.error("❌ Failed to switch to demo mode")
+
+    # Quick provider info
+    if selected_provider != 'demo':
+        info = provider_info.get(selected_provider, {})
+        if info.get('url'):
+            st.markdown(f"""
+            <div style="margin-top: 0.5rem;">
+                <small style="color: var(--gray-600);">
+                    📝 Get API key: <a href="{info['url']}" target="_blank" style="color: var(--primary-600);">
+                    {info['name']} Console</a>
+                </small>
+            </div>
+            """, unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
 def render_sidebar():
     """Render modern sidebar"""
     with st.sidebar:
@@ -780,6 +951,9 @@ def render_sidebar():
                 """, unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
+
+        # AI Provider Settings section
+        render_ai_provider_settings()
 
         # Tips section in sidebar
         st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)

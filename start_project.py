@@ -54,28 +54,31 @@ def wait_for_backend(url, timeout=30):
 def main():
     print_colored("🚀 Starting Agentic Calendar Project...", "green")
     print_colored("=====================================", "green")
-    
+
     # Check if .env.local exists
     if not Path(".env.local").exists():
         print_colored("❌ .env.local file not found!", "red")
         print_colored("Please copy .env.template to .env.local and configure your API keys", "yellow")
         return 1
-    
+
     # Check ports
     backend_port = 8000
     frontend_port = 8501
-    
+
+    # Check if ports are in use and offer to kill existing processes
     if not check_port(backend_port):
-        print_colored(f"❌ Port {backend_port} is already in use!", "red")
-        print_colored(f"Please stop any services running on port {backend_port}", "yellow")
-        return 1
-    
+        print_colored(f"⚠️  Port {backend_port} is already in use!", "yellow")
+        response = input("Do you want to continue anyway? (y/n): ").lower().strip()
+        if response != 'y':
+            return 1
+
     if not check_port(frontend_port):
-        print_colored(f"❌ Port {frontend_port} is already in use!", "red")
-        print_colored(f"Please stop any services running on port {frontend_port}", "yellow")
-        return 1
-    
-    print_colored(f"✅ Ports {backend_port} and {frontend_port} are available", "green")
+        print_colored(f"⚠️  Port {frontend_port} is already in use!", "yellow")
+        response = input("Do you want to continue anyway? (y/n): ").lower().strip()
+        if response != 'y':
+            return 1
+
+    print_colored(f"✅ Starting services on ports {backend_port} and {frontend_port}", "green")
     
     # Start FastAPI backend
     print_colored("🔧 Starting FastAPI Backend...", "cyan")
