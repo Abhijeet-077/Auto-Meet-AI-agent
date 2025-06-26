@@ -1,0 +1,83 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TailorTalk - AI Calendar Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* For custom scrollbar styling if needed, optional */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+    html, body {
+      height: 100%; /* Ensure html and body take full height */
+      margin: 0;
+      padding: 0;
+      overflow: hidden; /* Prevent double scrollbars, iframe will handle scrolling */
+    }
+    body {
+      font-family: 'Inter', sans-serif; /* A nice, modern sans-serif font */
+      display: flex; /* For root div to take full height */
+      flex-direction: column; /* For root div to take full height */
+      background-color: #f0f2f5; /* Match Streamlit's typical iframe background or choose your own */
+    }
+    #root {
+      flex-grow: 1; /* Allow root to grow and fill available space */
+      display: flex;
+      flex-direction: column;
+      height: 100%; /* Make root take full height of body */
+      overflow: hidden; /* Prevent root from causing body scroll */
+    }
+    .gsi-material-button {
+      background-color: #4285F4 !important;
+      color: white !important;
+      border-radius: 0.375rem !important; /* Tailwind's rounded-md */
+      font-weight: 500 !important;
+      padding: 0.5rem 1rem !important;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+    }
+    .gsi-material-button:hover {
+      background-color: #357AE8 !important;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06) !important;
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.7.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0"
+  }
+}
+</script>
+</head>
+<body>
+  <div id="root"></div>
+  <!--
+    IMPORTANT: The src path for index.tsx is relative ("index.tsx").
+    When this HTML file is served as /static/index.html from Streamlit,
+    a relative path "index.tsx" will correctly resolve to /static/index.tsx.
+    All other internal imports in your TSX files (e.g., import App from './App')
+    will also resolve relative to their file's location within the 'static' directory.
+  -->
+  <script type="module" src="index.tsx"></script>
+</body>
+</html>
+  

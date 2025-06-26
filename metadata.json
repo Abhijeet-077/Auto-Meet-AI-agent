@@ -1,0 +1,6 @@
+{
+  "name": "TailorTalk",
+  "description": "A conversational AI agent that assists users in booking appointments on their calendar through a chat interface, powered by Gemini.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}

@@ -1,0 +1,33 @@
+[global]
+# Streamlit configuration for production deployment
+
+# Disable development mode
+developmentMode = false
+
+# Configure server settings
+[server]
+# Port configuration (Streamlit Cloud will override this)
+port = 8501
+
+# Enable CORS for API calls (compatible with XSRF protection)
+enableCORS = true
+
+# Enable XSS protection
+enableXsrfProtection = true
+
+# File upload settings
+maxUploadSize = 200
+
+# Configure browser settings
+[browser]
+# Don't automatically open browser (for cloud deployment)
+gatherUsageStats = false
+
+# Configure theme
+[theme]
+# Use light theme by default
+base = "light"
+primaryColor = "#667eea"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f2f6"
+textColor = "#262730"
