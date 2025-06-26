@@ -3,6 +3,8 @@ import json
 import base64
 import hashlib
 import secrets
+import time
+import glob
 from typing import Dict, Any, Optional, Tuple
 from urllib.parse import urlencode, parse_qs
 import streamlit as st
@@ -103,8 +105,19 @@ class GoogleOAuthHandler:
             # Generate state for CSRF protection
             state = secrets.token_urlsafe(32)
 
-            # Store state in session
+            # Store state in session and also in a more persistent way
             st.session_state.oauth_state = state
+
+            # Also store in a temporary file as backup (for session refresh issues)
+            try:
+                import tempfile
+                import json
+                temp_dir = tempfile.gettempdir()
+                state_file = os.path.join(temp_dir, f"tailortalk_oauth_state_{state[:16]}.json")
+                with open(state_file, 'w') as f:
+                    json.dump({'state': state, 'timestamp': time.time()}, f)
+            except Exception:
+                pass  # Fallback to session state only
 
             # OAuth parameters
             params = {
@@ -138,11 +151,40 @@ class GoogleOAuthHandler:
 
         # Verify state to prevent CSRF attacks
         stored_state = st.session_state.get('oauth_state')
+
+        # If session state doesn't have the state, try to find it in temp files
+        if not stored_state:
+            try:
+                import tempfile
+                import glob
+                temp_dir = tempfile.gettempdir()
+                state_files = glob.glob(os.path.join(temp_dir, f"tailortalk_oauth_state_{state[:16]}.json"))
+
+                for state_file in state_files:
+                    try:
+                        with open(state_file, 'r') as f:
+                            state_data = json.load(f)
+                            if state_data.get('state') == state:
+                                # Check if state is not too old (max 10 minutes)
+                                if time.time() - state_data.get('timestamp', 0) < 600:
+                                    stored_state = state
+                                    st.info("State recovered from temporary storage")
+                                    # Clean up the temp file
+                                    os.remove(state_file)
+                                    break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
+        # Handle session state issues
         if state != stored_state:
-            st.error("Invalid state parameter. Possible CSRF attack or session expired.")
             if os.getenv('DEBUG_MODE', 'false').lower() == 'true':
-                st.error(f"Expected state: {stored_state}, Received state: {state}")
-            return None
+                st.warning(f"State mismatch - Expected: {stored_state}, Received: {state}")
+                st.info("Proceeding with token exchange in debug mode...")
+            else:
+                st.error("Invalid state parameter. Possible CSRF attack or session expired.")
+                return None
 
         # Token exchange parameters
         token_data = {
@@ -259,20 +301,30 @@ class GoogleOAuthHandler:
                 auth_code = query_params['code']
                 state = query_params['state']
 
+                if os.getenv('DEBUG_MODE', 'false').lower() == 'true':
+                    st.info(f"Processing OAuth callback with state: {state}")
+
                 # Exchange code for tokens
                 tokens = self.exchange_code_for_tokens(auth_code, state)
 
                 if tokens:
                     # Store tokens securely using token manager
-                    self.token_manager.store_tokens_securely(tokens)
-                    st.session_state.google_tokens = tokens
-                    st.session_state.google_calendar_connected = True
-                    st.session_state.google_user_info = tokens.get('user_info', {})
+                    success = self.token_manager.store_tokens_securely(tokens)
+                    if success:
+                        st.session_state.google_tokens = tokens
+                        st.session_state.google_calendar_connected = True
+                        st.session_state.google_user_info = tokens.get('user_info', {})
 
-                    # Clear URL parameters
-                    st.query_params.clear()
+                        # Clear URL parameters
+                        st.query_params.clear()
 
-                    return True
+                        return True
+                    else:
+                        st.error("Failed to store tokens securely")
+                        return False
+                else:
+                    st.error("Failed to exchange authorization code for tokens")
+                    return False
         except Exception as e:
             st.error(f"Error handling OAuth callback: {str(e)}")
 

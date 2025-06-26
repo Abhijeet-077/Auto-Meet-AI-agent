@@ -1,6 +1,31 @@
-# 📅 TailorTalk - AI Calendar Assistant
+# 🤖 Agentic Calendar - Intelligent Meeting Scheduler
 
-TailorTalk is an intelligent calendar assistant built with Streamlit that helps you schedule appointments using natural language conversation. It integrates with Google Calendar and uses Google's Gemini AI for natural language processing.
+**Your AI-powered calendar assistant that understands natural language and seamlessly integrates with Google Calendar.**
+
+## 🚀 Quick Start - Project Ready!
+
+**The project is fully configured and ready to run!** Choose your preferred startup method:
+
+```bash
+# Option 1: Python script (recommended, cross-platform)
+python start_project.py
+
+# Option 2: PowerShell script (Windows)
+.\start_project.ps1
+
+# Option 3: Batch file (Windows)
+start_project.bat
+```
+
+**Access URLs:**
+- 🎨 **Frontend Application**: http://localhost:8501
+- 🔧 **Backend API Documentation**: http://localhost:8000/docs
+- 🏥 **Health Check**: http://localhost:8000/api/v1/health
+
+**Check System Status:**
+```bash
+python check_status.py
+```
 
 ## ✨ Features
 

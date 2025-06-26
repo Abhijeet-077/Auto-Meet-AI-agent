@@ -4,6 +4,11 @@ streamlit
 google-generativeai
 requests
 
+# FastAPI Backend Dependencies
+fastapi
+uvicorn[standard]
+pydantic
+
 # Google Calendar API and OAuth dependencies
 google-api-python-client
 google-auth

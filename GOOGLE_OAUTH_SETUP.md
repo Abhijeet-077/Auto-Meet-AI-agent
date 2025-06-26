@@ -71,17 +71,23 @@ This guide will walk you through setting up Google Calendar OAuth 2.0 integratio
 ### Authorized redirect URIs:
 Add these URIs for different development scenarios:
 
-**For Streamlit (Python backend):**
+**For FastAPI Backend (RECOMMENDED - Current Architecture):**
+- `http://localhost:8000/api/v1/oauth/callback`
+- `http://127.0.0.1:8000/api/v1/oauth/callback`
+
+**For Legacy Streamlit (if still needed):**
 - `http://localhost:8501`
 - `http://localhost:8501/`
 - `http://127.0.0.1:8501`
 - `http://127.0.0.1:8501/`
 
-**For React development server:**
+**For React development server (future use):**
 - `http://localhost:3000`
 - `http://localhost:5173` (Vite default)
 - `http://127.0.0.1:3000`
 - `http://127.0.0.1:5173`
+
+**⚠️ IMPORTANT:** If you're migrating from the old Streamlit-embedded backend to the new FastAPI architecture, you MUST update your redirect URIs to use the FastAPI endpoints above.
 
 5. Click "Create"
 

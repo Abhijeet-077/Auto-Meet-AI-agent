@@ -204,39 +204,145 @@ class GoogleCalendarService:
             st.error(f"Error listing events: {error}")
             return []
     
-    def create_event(self, title: str, start_time: datetime, end_time: datetime, 
-                    description: str = "", attendees: List[str] = None) -> Optional[str]:
-        """Create a new calendar event"""
+    def create_event(self, title: str, start_time: datetime, end_time: datetime,
+                    description: str = "", attendees: List[str] = None, timezone: str = None) -> Dict[str, Any]:
+        """Create a new calendar event with comprehensive error handling"""
         if not self.service:
-            return None
-        
+            return {"success": False, "error": "Calendar service not initialized"}
+
         try:
+            # Determine timezone
+            if timezone is None:
+                # Try to get user's timezone from calendar settings
+                try:
+                    calendar_info = self.service.calendars().get(calendarId='primary').execute()
+                    timezone = calendar_info.get('timeZone', 'UTC')
+                except:
+                    timezone = 'UTC'
+
+            # Ensure datetime objects have timezone info
+            if start_time.tzinfo is None:
+                import pytz
+                tz = pytz.timezone(timezone)
+                start_time = tz.localize(start_time)
+                end_time = tz.localize(end_time)
+
+            # Create event object
             event = {
                 'summary': title,
                 'description': description,
                 'start': {
                     'dateTime': start_time.isoformat(),
-                    'timeZone': 'UTC',
+                    'timeZone': timezone,
                 },
                 'end': {
                     'dateTime': end_time.isoformat(),
-                    'timeZone': 'UTC',
+                    'timeZone': timezone,
                 },
             }
-            
-            if attendees:
-                event['attendees'] = [{'email': email} for email in attendees]
-            
+
+            # Add attendees if provided
+            if attendees and len(attendees) > 0:
+                event['attendees'] = [{'email': email.strip()} for email in attendees if email.strip()]
+                # Send notifications to attendees
+                event['sendUpdates'] = 'all'
+
+            # Debug logging
+            if os.getenv('DEBUG_MODE', 'false').lower() == 'true':
+                st.info(f"Creating event: {title} at {start_time} in timezone {timezone}")
+
+            # Create the event
             created_event = self.service.events().insert(
-                calendarId='primary', 
-                body=event
+                calendarId='primary',
+                body=event,
+                sendUpdates='all' if attendees else 'none'
             ).execute()
-            
-            return created_event.get('id')
-            
+
+            event_id = created_event.get('id')
+            event_link = created_event.get('htmlLink')
+
+            # Verify the event was created by trying to retrieve it
+            try:
+                verification = self.service.events().get(
+                    calendarId='primary',
+                    eventId=event_id
+                ).execute()
+
+                if verification:
+                    return {
+                        "success": True,
+                        "event_id": event_id,
+                        "event_link": event_link,
+                        "title": title,
+                        "start_time": start_time.strftime("%Y-%m-%d %H:%M %Z"),
+                        "end_time": end_time.strftime("%Y-%m-%d %H:%M %Z"),
+                        "timezone": timezone,
+                        "attendees": attendees or []
+                    }
+                else:
+                    return {"success": False, "error": "Event created but verification failed"}
+
+            except Exception as verify_error:
+                # Event might still be created even if verification fails
+                return {
+                    "success": True,
+                    "event_id": event_id,
+                    "event_link": event_link,
+                    "title": title,
+                    "start_time": start_time.strftime("%Y-%m-%d %H:%M %Z"),
+                    "end_time": end_time.strftime("%Y-%m-%d %H:%M %Z"),
+                    "timezone": timezone,
+                    "attendees": attendees or [],
+                    "warning": f"Event created but verification failed: {str(verify_error)}"
+                }
+
         except HttpError as error:
-            st.error(f"Error creating event: {error}")
-            return None
+            error_details = f"HTTP {error.resp.status}: {error.content.decode() if error.content else 'Unknown error'}"
+            st.error(f"Google Calendar API Error: {error_details}")
+            return {"success": False, "error": error_details}
+        except Exception as error:
+            error_msg = f"Unexpected error creating event: {str(error)}"
+            st.error(error_msg)
+            return {"success": False, "error": error_msg}
+
+    def verify_event_exists(self, event_id: str) -> bool:
+        """Verify that an event exists in the calendar"""
+        if not self.service or not event_id:
+            return False
+
+        try:
+            event = self.service.events().get(
+                calendarId='primary',
+                eventId=event_id
+            ).execute()
+            return bool(event)
+        except:
+            return False
+
+    def get_recent_events(self, hours: int = 24) -> List[Dict[str, Any]]:
+        """Get events created in the last N hours for verification"""
+        if not self.service:
+            return []
+
+        try:
+            from datetime import datetime, timedelta
+            import pytz
+
+            now = datetime.now(pytz.UTC)
+            time_min = now - timedelta(hours=hours)
+
+            events_result = self.service.events().list(
+                calendarId='primary',
+                timeMin=time_min.isoformat(),
+                timeMax=now.isoformat(),
+                singleEvents=True,
+                orderBy='startTime'
+            ).execute()
+
+            return events_result.get('items', [])
+        except Exception as e:
+            st.error(f"Error getting recent events: {str(e)}")
+            return []
     
     def find_free_slots(self, start_date: datetime, end_date: datetime, 
                        duration_minutes: int = 60) -> List[Dict[str, datetime]]:
