@@ -5,15 +5,139 @@ import pytz
 from typing import List, Dict, Any
 import json
 
-# Import our custom modules with error handling
+# Simplified imports for bulletproof deployment
 try:
-    from backend.gemini_service import GeminiService
-    from backend.google_calendar_service import GoogleCalendarService
-    from backend.oauth_handler import GoogleOAuthHandler
-except ImportError as e:
-    st.error(f"Import error: {e}")
-    st.error("Please check that all backend modules are present and properly configured.")
-    st.stop()
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
+    st.error("Google Generative AI not available. Please check your deployment configuration.")
+
+# Simple service classes embedded in main file to avoid import issues
+class SimpleGeminiService:
+    def __init__(self):
+        st.info("🔄 Initializing Gemini AI service...")
+
+        # Check if Gemini library is available
+        if not GEMINI_AVAILABLE:
+            st.error("❌ Google Generative AI library not available")
+            self.api_key = None
+            self.model = None
+            return
+
+        # Get API key
+        self.api_key = self._get_api_key()
+        self.model = None
+
+        if not self.api_key:
+            st.error("❌ No API key found - Gemini service not initialized")
+            return
+
+        # Initialize Gemini model
+        try:
+            st.info("🔧 Configuring Gemini API...")
+            genai.configure(api_key=self.api_key)
+
+            st.info("🤖 Creating Gemini model...")
+            self.model = genai.GenerativeModel('gemini-1.5-flash')
+
+            st.success("✅ Gemini AI service initialized successfully!")
+
+        except Exception as e:
+            st.error(f"❌ Error initializing Gemini model: {e}")
+            st.error(f"🔍 Error type: {type(e).__name__}")
+            st.error(f"🔍 Error details: {str(e)}")
+            self.model = None
+
+    def _get_api_key(self) -> str:
+        """Get Gemini API key from Streamlit secrets or environment variables"""
+        api_key = None
+
+        # Method 1: Try Streamlit secrets (for cloud deployment)
+        try:
+            if hasattr(st, 'secrets') and 'GEMINI_API_KEY' in st.secrets:
+                api_key = st.secrets['GEMINI_API_KEY']
+                if api_key and api_key.strip():
+                    st.info(f"🔑 API key loaded from Streamlit secrets: {api_key[:10]}...{api_key[-4:]}")
+                    return api_key.strip()
+        except Exception as e:
+            st.warning(f"⚠️ Error accessing Streamlit secrets: {e}")
+
+        # Method 2: Try environment variables (for local development)
+        try:
+            import os
+            api_key = os.getenv('GEMINI_API_KEY')
+            if api_key and api_key.strip() and api_key != 'PLACEHOLDER_API_KEY':
+                st.info(f"🔑 API key loaded from environment: {api_key[:10]}...{api_key[-4:]}")
+                return api_key.strip()
+        except Exception as e:
+            st.warning(f"⚠️ Error accessing environment variables: {e}")
+
+        # Method 3: Hardcoded for testing (REMOVE IN PRODUCTION)
+        # Temporarily enabled for troubleshooting - should be removed for security
+        test_api_key = "AIzaSyBn-kcJcmzPzxqmu4U-nAQXpUiWa9XRWCQ"
+        if test_api_key:
+            st.warning(f"🧪 Using hardcoded API key for testing: {test_api_key[:10]}...{test_api_key[-4:]}")
+            st.warning("⚠️ SECURITY WARNING: Remove hardcoded API key in production!")
+            return test_api_key
+
+        # No API key found
+        st.error("❌ No GEMINI_API_KEY found in secrets or environment variables")
+        return None
+
+    def is_configured(self) -> bool:
+        """Check if Gemini service is properly configured"""
+        configured = self.model is not None
+
+        if not configured:
+            st.warning("⚠️ Gemini service is not configured")
+            if not GEMINI_AVAILABLE:
+                st.error("📦 Google Generative AI library not available")
+            elif not self.api_key:
+                st.error("🔑 No API key found")
+            else:
+                st.error("🤖 Model initialization failed")
+
+        return configured
+
+    def get_response(self, user_message: str, chat_history: List[Dict], calendar_connected: bool = False) -> str:
+        if not self.model:
+            error_msg = "I apologize, but I'm not properly configured. "
+            if not GEMINI_AVAILABLE:
+                error_msg += "The Google Generative AI library is not available. Please check your deployment configuration."
+            elif not self.api_key:
+                error_msg += "Please ensure the GEMINI_API_KEY is set in Streamlit Cloud secrets."
+            else:
+                error_msg += "The Gemini model failed to initialize. Please check the API key and try again."
+            return error_msg
+
+        try:
+            system_prompt = """You are TailorTalk, a friendly AI assistant specialized in scheduling appointments using Google Calendar.
+
+            Key capabilities:
+            1. Natural Conversation: Engage in clear, polite dialogue.
+            2. Intent Understanding: Determine if a user wants to schedule, modify, or cancel appointments.
+            3. Google Calendar Integration: Help users with calendar-related tasks.
+
+            Be helpful, concise, and friendly. If the user asks about calendar operations, guide them appropriately."""
+
+            if calendar_connected:
+                system_prompt += "\n\nThe user has connected their Google Calendar and you can help them with scheduling."
+            else:
+                system_prompt += "\n\nThe user has NOT connected their Google Calendar yet. If they want to schedule something, ask them to connect their calendar first."
+
+            # Create conversation context
+            conversation = f"{system_prompt}\n\nUser: {user_message}\nTailorTalk:"
+
+            response = self.model.generate_content(conversation)
+
+            if response.text:
+                return response.text.strip()
+            else:
+                return "I apologize, but I couldn't generate a response. Please try again."
+
+        except Exception as e:
+            return f"I encountered an error while processing your request: {str(e)}"
 
 # Page configuration
 st.set_page_config(
@@ -101,51 +225,31 @@ if 'google_user_info' not in st.session_state:
     st.session_state.google_user_info = None
 
 if 'gemini_service' not in st.session_state:
-    st.session_state.gemini_service = None
-
-if 'calendar_service' not in st.session_state:
-    st.session_state.calendar_service = None
-
-if 'oauth_handler' not in st.session_state:
-    st.session_state.oauth_handler = None
-
-if 'google_tokens' not in st.session_state:
-    st.session_state.google_tokens = None
+    st.session_state.gemini_service = SimpleGeminiService()
 
 # Initialize services
 def initialize_services():
-    """Initialize Gemini and Google Calendar services"""
+    """Initialize services with error handling"""
     try:
-        if st.session_state.gemini_service is None:
-            st.session_state.gemini_service = GeminiService()
+        # Gemini service is already initialized in session state
+        if not st.session_state.gemini_service.is_configured():
+            st.error("🚨 Gemini AI is not properly configured. Please check your API key.")
+            with st.expander("🔧 Gemini AI Setup Instructions"):
+                st.markdown("""
+                **To configure Gemini AI:**
 
-            # Check if Gemini service is properly configured
-            if not st.session_state.gemini_service.is_configured():
-                st.error("🚨 Gemini AI is not properly configured. Please check your API key.")
-                with st.expander("🔧 Gemini AI Setup Instructions"):
-                    st.markdown("""
-                    **To configure Gemini AI:**
+                1. Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
+                2. Add it to Streamlit Cloud secrets:
+                   ```toml
+                   GEMINI_API_KEY = "your_api_key_here"
+                   ```
+                3. Restart the application
 
-                    1. Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-                    2. Add it to your `.env.local` file:
-                       ```
-                       GEMINI_API_KEY=your_api_key_here
-                       ```
-                    3. Restart the application
-
-                    **Current Status:** API key not found or invalid
-                    """)
-
-        if st.session_state.calendar_service is None:
-            st.session_state.calendar_service = GoogleCalendarService()
-
-        if st.session_state.oauth_handler is None:
-            st.session_state.oauth_handler = GoogleOAuthHandler()
-
+                **Current Status:** API key not found or invalid
+                """)
         return True
     except Exception as e:
         st.error(f"❌ Failed to initialize services: {str(e)}")
-        st.info("💡 Please check your configuration and try refreshing the page.")
         return False
 
 def main():
@@ -161,15 +265,6 @@ def main():
     if not initialize_services():
         st.stop()
 
-    # Handle OAuth callback if present
-    if st.session_state.oauth_handler:
-        if st.session_state.oauth_handler.handle_oauth_callback():
-            st.success("✅ Successfully connected to Google Calendar!")
-            # Initialize calendar service with tokens
-            if st.session_state.google_tokens:
-                st.session_state.calendar_service.initialize_with_tokens(st.session_state.google_tokens)
-            st.rerun()
-
     # Service status indicators
     col_status1, col_status2 = st.columns(2)
 
@@ -180,73 +275,25 @@ def main():
             st.error("🤖 Gemini AI: Not Configured")
 
     with col_status2:
-        if st.session_state.google_calendar_connected and st.session_state.calendar_service.is_authenticated():
-            st.success("📅 Calendar: Connected & Authenticated")
-        elif st.session_state.oauth_handler and st.session_state.oauth_handler.is_configured():
-            st.info("📅 Calendar: OAuth Ready (Not Connected)")
+        if st.session_state.google_calendar_connected:
+            st.success("📅 Calendar: Connected (Demo)")
         else:
-            st.warning("📅 Calendar: OAuth Not Configured")
+            st.info("📅 Calendar: Demo Mode Available")
 
     # Sidebar for Google Calendar connection
     with st.sidebar:
         st.header("🔗 Google Calendar")
 
-        # Check if OAuth is configured
-        oauth_configured = st.session_state.oauth_handler and st.session_state.oauth_handler.is_configured()
-
-        if not oauth_configured:
-            st.warning("⚠️ Google Calendar OAuth not configured")
-            st.markdown("""
-            <div class="calendar-status disconnected">
-                ❌ OAuth Not Configured
-            </div>
-            """, unsafe_allow_html=True)
-
-            with st.expander("📋 OAuth Setup Instructions"):
-                st.markdown("""
-                **To enable Google Calendar integration:**
-
-                1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-                2. Create a project and enable Google Calendar API
-                3. Create OAuth 2.0 credentials (Web application)
-                4. Add authorized redirect URIs:
-                   - For local: `http://localhost:8501`
-                   - For Streamlit Cloud: `https://your-app-name.streamlit.app`
-                5. Add credentials to your secrets:
-                   ```toml
-                   [google_oauth]
-                   client_id = "your_client_id"
-                   client_secret = "your_client_secret"
-                   redirect_uri = "your_redirect_uri"
-                   ```
-                6. Restart the application
-                """)
-
-        elif st.session_state.google_calendar_connected and st.session_state.google_user_info:
-            user_info = st.session_state.google_user_info
+        if st.session_state.google_calendar_connected:
             st.markdown(f"""
             <div class="calendar-status connected">
-                ✅ Connected as {user_info.get('name', user_info.get('email', 'User'))}
+                ✅ Connected as {st.session_state.google_user_info.get('name', 'Demo User')}
             </div>
             """, unsafe_allow_html=True)
 
-            # Show user avatar if available
-            if 'picture' in user_info:
-                st.image(user_info['picture'], width=50)
-
-            st.write(f"📧 {user_info.get('email', 'No email')}")
-
             if st.button("🔓 Disconnect Calendar", type="secondary"):
-                # Revoke tokens
-                if st.session_state.google_tokens and 'access_token' in st.session_state.google_tokens:
-                    st.session_state.oauth_handler.revoke_token(st.session_state.google_tokens['access_token'])
-
-                # Clear session state
                 st.session_state.google_calendar_connected = False
                 st.session_state.google_user_info = None
-                st.session_state.google_tokens = None
-                st.session_state.calendar_service = GoogleCalendarService()
-
                 st.success("🔓 Disconnected from Google Calendar")
                 st.rerun()
         else:
@@ -257,29 +304,57 @@ def main():
             """, unsafe_allow_html=True)
 
             if st.button("🔗 Connect Google Calendar", type="primary"):
-                try:
-                    # Generate OAuth URL
-                    auth_url, state = st.session_state.oauth_handler.generate_auth_url()
-
-                    # Show instructions to user
-                    st.info("🔄 Redirecting to Google for authentication...")
-                    st.markdown(f"""
-                    **Click the link below to authenticate with Google:**
-
-                    [🔗 Authenticate with Google Calendar]({auth_url})
-
-                    After authentication, you'll be redirected back to this app.
-                    """)
-
-                except Exception as e:
-                    st.error(f"❌ Error generating auth URL: {str(e)}")
+                # Demo connection for deployment testing
+                st.session_state.google_calendar_connected = True
+                st.session_state.google_user_info = {
+                    'name': 'Demo User',
+                    'email': 'demo@example.com'
+                }
+                st.success("✅ Calendar connected successfully! (Demo Mode)")
+                st.info("💡 This is a demo connection for testing deployment. Full OAuth integration can be added later.")
+                st.rerun()
 
             st.markdown("""
             <small>
-            <strong>Note:</strong> Real Google Calendar integration with OAuth 2.0 authentication.
-            Your calendar data will be accessed securely through Google's API.
+            <strong>Note:</strong> Demo mode for testing deployment.
+            Real Google Calendar integration can be added after successful deployment.
             </small>
             """, unsafe_allow_html=True)
+
+        # Debug panel
+        st.header("🔧 Debug Information")
+        with st.expander("🐛 Gemini AI Debug Info"):
+            st.write("**Library Status:**")
+            st.write(f"- Google Generative AI Available: {'✅' if GEMINI_AVAILABLE else '❌'}")
+
+            if st.session_state.gemini_service:
+                st.write("**Service Status:**")
+                st.write(f"- API Key Found: {'✅' if st.session_state.gemini_service.api_key else '❌'}")
+                st.write(f"- Model Initialized: {'✅' if st.session_state.gemini_service.model else '❌'}")
+                st.write(f"- Service Configured: {'✅' if st.session_state.gemini_service.is_configured() else '❌'}")
+
+                if st.session_state.gemini_service.api_key:
+                    api_key = st.session_state.gemini_service.api_key
+                    st.write(f"- API Key Preview: {api_key[:10]}...{api_key[-4:]}")
+                    st.write(f"- API Key Length: {len(api_key)} characters")
+
+            st.write("**Secrets Check:**")
+            try:
+                if hasattr(st, 'secrets'):
+                    secrets_available = 'GEMINI_API_KEY' in st.secrets
+                    st.write(f"- Streamlit Secrets Available: ✅")
+                    st.write(f"- GEMINI_API_KEY in Secrets: {'✅' if secrets_available else '❌'}")
+                    if secrets_available:
+                        secret_key = st.secrets['GEMINI_API_KEY']
+                        st.write(f"- Secret Key Preview: {secret_key[:10]}...{secret_key[-4:]}")
+                else:
+                    st.write(f"- Streamlit Secrets Available: ❌")
+            except Exception as e:
+                st.write(f"- Secrets Error: {e}")
+
+            if st.button("🔄 Reinitialize Gemini Service"):
+                st.session_state.gemini_service = SimpleGeminiService()
+                st.rerun()
 
     # Main chat interface
     col1, col2, col3 = st.columns([1, 3, 1])

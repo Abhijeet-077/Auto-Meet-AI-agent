@@ -1,5 +1,0 @@
-# Minimal system packages for Streamlit Cloud
-# Only essential packages to avoid deployment errors
-
-libffi-dev
-libssl-dev

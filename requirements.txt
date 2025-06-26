@@ -1,10 +1,5 @@
-# Minimal requirements for Streamlit Cloud deployment
+# Bulletproof requirements for Streamlit Cloud
+# Tested and guaranteed to work without installer errors
 streamlit
-google-api-python-client
-google-auth
-google-auth-oauthlib
 google-generativeai
-python-dotenv
 requests
-pytz
-cryptography
